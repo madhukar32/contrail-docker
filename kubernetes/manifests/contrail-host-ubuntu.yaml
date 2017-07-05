@@ -31,6 +31,30 @@ data:
     token =
     api_server = 10.84.13.7
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contrail-config-modifier
+  namespace: kube-system
+data:
+  contrailctl_modifier.py: |-
+    import os
+    import sys
+    import ConfigParser
+    import time
+
+    # Create logger, console handler and formatter
+    logger = logging.getLogger('OpenStack-Helm DB Init')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Set the formatter and add the handler
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    
+---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -58,6 +82,7 @@ spec:
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-controller
       containers:
       - name: contrail-analyticsdb
         image: "10.84.5.71:5000/contrail-analyticsdb-ubuntu16.04:4.0.0.0-20"
@@ -78,7 +103,7 @@ spec:
             path: analyticsdb.conf
       - name: analyticsdb-data
         emptyDir: {}
----
+--
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -106,6 +131,7 @@ spec:
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-controller
       containers:
       - name: contrail-analytics
         image: "10.84.5.71:5000/contrail-analytics-ubuntu16.04:4.0.0.0-20"
@@ -150,6 +176,7 @@ spec:
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-controller
       containers:
       - name: contrail-controller
         image: "10.84.5.71:5000/contrail-controller-ubuntu16.04:4.0.0.0-20"
@@ -201,6 +228,7 @@ spec:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
+      serviceAccountName: contrail-kube-manager
       hostNetwork: true
       containers:
       - name: contrail-kube-manager
@@ -268,6 +296,7 @@ spec:
       #  operator: Exists
       #  effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-controller
       containers:
       - name: contrail-agent
         image: "10.84.5.71:5000/contrail-agent-ubuntu16.04:4.0.0.0-20"
@@ -335,3 +364,71 @@ spec:
       - name: var-log-contrail-cni
         hostPath:
           path: /var/log/contrail/cni/
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: contrail-controller
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs:
+      - update
+      - patch
+  - apiGroups:
+      - extensions
+      - apps
+    verbs:
+      - get
+      - watch
+      - list
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contrail-controller
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: contrail-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contrail-controller
+subjects:
+- kind: ServiceAccount
+  name: contrail-controller
+  namespace: kube-system
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: contrail-kube-manager
+  namespace: kube-system
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contrail-kube-manager
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: contrail-kube-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contrail-kube-manager
+subjects:
+- kind: ServiceAccount
+name: contrail-kube-manager
+  namespace: kube-system

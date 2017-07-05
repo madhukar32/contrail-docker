@@ -1,0 +1,174 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contrail-config
+data:
+  global-config: |-
+    [GLOBAL]
+    cloud_orchestrator = kubernetes
+    sandesh_ssl_enable = False
+    enable_config_service = True
+    enable_control_service = True
+    enable_webui_service = True
+    introspect_ssl_enable = False
+    config_nodes = 10.84.13.7
+    controller_nodes = 10.84.13.7
+    analytics_nodes = 10.84.13.7
+    analyticsdb_nodes = 10.84.13.7
+  agent-config: |-
+    [AGENT]
+    compile_vrouter_module = True
+    vrouter_physical_interface = p4p1
+  kubemanager-config: |-
+    [KUBERNETES]
+    cluster_name = k8s-default
+    cluster_project = {'domain': 'default-domain', 'project': 'default'}
+    cluster_network = {}
+    service_subnets = 10.96.0.0/12
+    pod_subnets = 10.32.0.0/12
+    token =
+    api_server = 10.84.13.7
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contrail-config-modifier
+data:
+  contrailctl_modifier.py: |-
+    import os
+    import sys
+    import ConfigParser
+    import time
+
+    # Random sleep timer
+    print "sleep for 10000"
+    time.sleep(100000)
+    
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contrail-controller
+  labels:
+    app: contrail-controller
+spec:
+  template:
+    metadata:
+      labels:
+        app: contrail-controller
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      hostNetwork: true
+      serviceAccountName: contrail-controller
+      containers:
+      - name: contrail-controller
+        image: "10.84.5.71:5000/contrail-controller-ubuntu16.04:4.0.0.0-20"
+        imagePullPolicy: ""
+        command: ["/usr/bin/python", "/tmp/contrailctl_modifier.py"]
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail-role
+          value: controller
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/contrailctl
+          name: contrail-config
+        - mountPath: /var/lib/cassandra
+          name: configdb-data
+        - mountPath: /var/lib/zookeeper
+          name: zookeeper-data
+        - mountPath: /tmp/
+          name: python
+      volumes:
+      - name: contrail-config
+        configMap:
+          name: contrail-config
+          items:
+          - key: global-config
+            path: controller.conf
+      - name: python
+        configMap:
+          name: contrail-config-modifier
+          items:
+          - key: contrailctl_modifier.py
+            path: contrailctl_modifier.py
+      - name: configdb-data
+        emptyDir: {}
+      - name: zookeeper-data
+        emptyDir: {}
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: contrail-controller
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs:
+      - update
+      - patch
+  - apiGroups:
+      - extensions
+      - apps
+    resources:
+      - daemonsets
+    verbs:
+      - get
+      - watch
+      - list
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contrail-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: contrail-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contrail-controller
+subjects:
+- kind: ServiceAccount
+  name: contrail-controller
+  namespace: default
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: contrail-kube-manager
+  namespace: default
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contrail-kube-manager
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: contrail-kube-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contrail-kube-manager
+subjects:
+- kind: ServiceAccount
+  name: contrail-kube-manager
+  namespace: default
