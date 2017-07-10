@@ -13,14 +13,9 @@ data:
     enable_control_service = True
     enable_webui_service = True
     introspect_ssl_enable = False
-    config_nodes = 10.84.13.7
-    controller_nodes = 10.84.13.7
-    analytics_nodes = 10.84.13.7
-    analyticsdb_nodes = 10.84.13.7
   agent-config: |-
     [AGENT]
     compile_vrouter_module = False
-    vrouter_physical_interface = enp2s0
   kubemanager-config: |-
     [KUBERNETES]
     cluster_name = k8s-default
@@ -53,29 +48,34 @@ spec:
                 operator: In
                 values:
                 - "true"
+            - matchExpressions:
+              - key: "node-role.kubernetes.io/master"
+                operator: Exists
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
-      containers:
+      serviceAccountName: contrail-component
       - name: contrail-analyticsdb
         image: "10.84.5.71:5000/contrail-analyticsdb-ubuntu14.04:4.0.0.0-20"
         imagePullPolicy: ""
+        command: ["python", "/configmap_modifier.py"]
         securityContext:
           privileged: true
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: analyticsdb
+        - name: init_system
+          value: supervisord 
         volumeMounts:
-        - mountPath: /etc/contrailctl
-          name: contrail-config
         - mountPath: /var/lib/cassandra
           name: analyticsdb-data
       volumes:
-      - name: contrail-config
-        configMap:
-          name: contrail-config
-          items:
-          - key: global-config
-            path: analyticsdb.conf
       - name: analyticsdb-data
         emptyDir: {}
 ---
@@ -101,27 +101,31 @@ spec:
                 operator: In
                 values:
                 - "true"
+            - matchExpressions:
+              - key: "node-role.kubernetes.io/master"
+                operator: Exists
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-component
       containers:
       - name: contrail-analytics
         image: "10.84.5.71:5000/contrail-analytics-ubuntu14.04:4.0.0.0-20"
         imagePullPolicy: ""
+        command: ["python", "/configmap_modifier.py"]
         securityContext:
           privileged: true
-        volumeMounts:
-        - mountPath: /etc/contrailctl
-          name: contrail-config
-      volumes:
-      - name: contrail-config
-        configMap:
-          name: contrail-config
-          items:
-          - key: global-config
-            path: analytics.conf
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: analytics
+        - name: init_system
+          value: supervisord 
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -145,31 +149,37 @@ spec:
                 operator: In
                 values:
                 - "true"
+            - matchExpressions:
+              - key: "node-role.kubernetes.io/master"
+                operator: Exists
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-component
       containers:
       - name: contrail-controller
         image: "10.84.5.71:5000/contrail-controller-ubuntu14.04:4.0.0.0-20"
         imagePullPolicy: ""
+        command: ["python", "/configmap_modifier.py"]
         securityContext:
           privileged: true
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: controller
+        - name: init_system
+          value: supervisord 
         volumeMounts:
-        - mountPath: /etc/contrailctl
-          name: contrail-config
         - mountPath: /var/lib/cassandra
           name: configdb-data
         - mountPath: /var/lib/zookeeper
           name: zookeeper-data
       volumes:
-      - name: contrail-config
-        configMap:
-          name: contrail-config
-          items:
-          - key: global-config
-            path: controller.conf
       - name: configdb-data
         emptyDir: {}
       - name: zookeeper-data
@@ -197,47 +207,31 @@ spec:
                 operator: In
                 values:
                 - "true"
+            - matchExpressions:
+              - key: "node-role.kubernetes.io/master"
+                operator: Exists
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
+      serviceAccountName: contrail-kube-manager
       containers:
       - name: contrail-kube-manager
         image: "10.84.5.71:5000/contrail-kube-manager-ubuntu14.04:4.0.0.0-20"
         imagePullPolicy: ""
-        command: ["/bin/bash", "-c"]
-        args: ["
-		while true;
-		do
-			[ -f /tmp/contrailctl/global.conf ] && [ -f /tmp/contrailctl/kubemanager.conf ] && break;
-			sleep 2;
-		done;
-		while true;
-		do
-			[ -d /etc/contrailctl ] && break;
-			mkdir /etc/contrailctl;
-			sleep 2;
-		done;
-		cat /tmp/contrailctl/global.conf >> /etc/contrailctl/kubemanager.conf;
-		echo '' >> /etc/contrailctl/kubemanager.conf;
-		cat /tmp/contrailctl/kubemanager.conf >> /etc/contrailctl/kubemanager.conf;
-		/entrypoint.sh"
-	]
+        command: ["python", "/configmap_modifier.py"]
         securityContext:
           privileged: true
-        volumeMounts:
-        - mountPath: /tmp/contrailctl
-          name: contrail-config
-      volumes:
-      - name: contrail-config
-        configMap:
-          name: contrail-config
-          items:
-          - key: global-config
-            path: global.conf
-          - key: kubemanager-config
-            path: kubemanager.conf
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: kubemanager
+        - name: init_system
+          value: supervisord 
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -272,8 +266,6 @@ spec:
       - name: contrail-vrouter-compiler
         image: "10.84.5.71:5000/contrail-vrouter-compiler-centos7:4.0.0.0-20"
         imagePullPolicy: ""
-        securityContext:
-          privileged: true
         volumeMounts:
         - mountPath: /usr/src/kernels
           name: usr-src-kernels
@@ -286,33 +278,23 @@ spec:
       - name: contrail-agent
         image: "10.84.5.71:5000/contrail-agent-ubuntu14.04:4.0.0.0-20"
         imagePullPolicy: ""
-        command: ["/bin/bash", "-c"]
-        args: ["
-		while true;
-		do
-			[ -f /tmp/contrailctl/global.conf ] && [ -f /tmp/contrailctl/agent.conf ] && break;
-			sleep 2;
-		done;
-		while true;
-		do
-			[ -d /etc/contrailctl ] && break;
-			mkdir /etc/contrailctl;
-			sleep 2;
-		done;
-		cat /tmp/contrailctl/global.conf >> /etc/contrailctl/agent.conf;
-		echo '' >> /etc/contrailctl/agent.conf;
-		cat /tmp/contrailctl/agent.conf >> /etc/contrailctl/agent.conf;
-		/entrypoint.sh"
-	]
+        command: ["python", "/configmap_modifier.py"]
         securityContext:
           privileged: true
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: agent
+        - name: init_system
+          value: supervisord 
         volumeMounts:
         - mountPath: /usr/src
           name: usr-src
         - mountPath: /lib/modules
           name: lib-modules
-        - mountPath: /tmp/contrailctl
-          name: contrail-config
         - mountPath: /var/lib/contrail/
           name: var-lib-contrail
         - mountPath: /host/etc_cni
@@ -323,14 +305,6 @@ spec:
         - mountPath: /var/log/contrail/cni
           name: var-log-contrail-cni
       volumes:
-      - name: contrail-config
-        configMap:
-          name: contrail-config
-          items:
-          - key: global-config
-            path: global.conf
-          - key: agent-config
-            path: agent.conf
       - name: usr-src
         hostPath:
           path: /usr/src

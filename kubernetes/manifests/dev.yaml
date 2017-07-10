@@ -12,10 +12,6 @@ data:
     enable_control_service = True
     enable_webui_service = True
     introspect_ssl_enable = False
-    config_nodes = 10.84.13.7
-    controller_nodes = 10.84.13.7
-    analytics_nodes = 10.84.13.7
-    analyticsdb_nodes = 10.84.13.7
   agent-config: |-
     [AGENT]
     compile_vrouter_module = True
@@ -28,7 +24,6 @@ data:
     service_subnets = 10.96.0.0/12
     pod_subnets = 10.32.0.0/12
     token =
-    api_server = 10.84.13.7
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -45,6 +40,17 @@ data:
     print "sleep for 10000"
     time.sleep(100000)
     
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contrail-hosts
+data:
+  hosts: |-
+    127.0.0.1       localhost
+    127.0.1.1       minikube
+    10.0.0.1        kubernetes.default
+
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -64,11 +70,10 @@ spec:
         effect: NoSchedule
       hostNetwork: true
       serviceAccountName: contrail-controller
-      containers:
-      - name: contrail-controller
-        image: "10.84.5.71:5000/contrail-controller-ubuntu16.04:4.0.0.0-20"
+      initContainers:
+      - name: contrail-toolkit
+        image: "madhukar32/contrail-toolkit:4.0.0.0-6"
         imagePullPolicy: ""
-        command: ["/usr/bin/python", "/tmp/contrailctl_modifier.py"]
         env:
         - name: podIp
           valueFrom:
@@ -76,6 +81,14 @@ spec:
               fieldPath: status.podIP
         - name: contrail_role
           value: controller
+        volumeMounts:
+        - mountPath: /etc/
+          name: hosts
+      containers:
+      - name: contrail-controller
+        image: "10.84.5.71:5000/contrail-controller-ubuntu16.04:4.0.0.0-20"
+        imagePullPolicy: ""
+        command: ["/usr/bin/python", "/tmp/contrailctl_modifier.py"]
         securityContext:
           privileged: true
         volumeMounts:
@@ -91,9 +104,12 @@ spec:
       - name: contrail-config
         configMap:
           name: contrail-config
+      - name: hosts
+        configMap:
+          name: contrail-hosts
           items:
-          - key: global-config
-            path: controller.conf
+          - key: hosts
+            path: hosts
       - name: python
         configMap:
           name: contrail-config-modifier
@@ -104,6 +120,194 @@ spec:
         emptyDir: {}
       - name: zookeeper-data
         emptyDir: {}
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contrail-analyticsdb
+  labels:
+    app: contrail-analyticsdb
+spec:
+  template:
+    metadata:
+      labels:
+        app: contrail-analyticsdb
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      hostNetwork: true
+      serviceAccountName: contrail-controller
+      initContainers:
+      - name: contrail-toolkit
+        image: "madhukar32/contrail-toolkit:4.0.0.0-6"
+        imagePullPolicy: ""
+        command: ["python", "/configmap_modifier.py"]
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: analyticsdb
+        volumeMounts:
+        - mountPath: /etc/
+          name: hosts
+      containers:
+      - name: contrail-analyticsdb
+        image: "10.84.5.71:5000/contrail-analyticsdb-ubuntu16.04:4.0.0.0-20"
+        command: ["/usr/bin/python", "/tmp/contrailctl_modifier.py"]
+        imagePullPolicy: ""
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/contrailctl
+          name: contrail-config
+        - mountPath: /var/lib/cassandra
+          name: analyticsdb-data
+        - mountPath: /tmp/
+          name: python
+      volumes:
+      - name: contrail-config
+        configMap:
+          name: contrail-config
+      - name: python
+        configMap:
+          name: contrail-config-modifier
+          items:
+          - key: contrailctl_modifier.py
+            path: contrailctl_modifier.py
+      - name: analyticsdb-data
+        emptyDir: {}
+      - name: hosts
+        configMap:
+          name: contrail-hosts
+          items:
+          - key: hosts
+            path: hosts
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contrail-analytics
+  labels:
+    app: contrail-analytics
+spec:
+  template:
+    metadata:
+      labels:
+        app: contrail-analytics
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      hostNetwork: true
+      serviceAccountName: contrail-controller
+      initContainers:
+      - name: contrail-toolkit
+        image: "madhukar32/contrail-toolkit:4.0.0.0-6"
+        imagePullPolicy: ""
+        command: ["python", "/configmap_modifier.py"]
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: analytics
+        volumeMounts:
+        - mountPath: /etc/
+          name: hosts
+      containers:
+      - name: contrail-analytics
+        image: "10.84.5.71:5000/contrail-analytics-ubuntu16.04:4.0.0.0-20"
+        imagePullPolicy: ""
+        command: ["/usr/bin/python", "/tmp/contrailctl_modifier.py"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/contrailctl
+          name: contrail-config
+      volumes:
+      - name: contrail-config
+        configMap:
+          name: contrail-config
+      - name: python
+        configMap:
+          name: contrail-config-modifier
+          items:
+          - key: contrailctl_modifier.py
+            path: contrailctl_modifier.py
+      - name: hosts
+        configMap:
+          name: contrail-hosts
+          items:
+          - key: hosts
+            path: hosts
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contrail-kube-manager
+  labels:
+    app: contrail-kube-manager
+spec:
+  template:
+    metadata:
+      labels:
+        app: contrail-kube-manager
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      serviceAccountName: contrail-kube-manager
+      initContainers:
+      - name: contrail-toolkit
+        image: "madhukar32/contrail-toolkit:4.0.0.0-6"
+        imagePullPolicy: ""
+        command: ["python", "/configmap_modifier.py"]
+        env:
+        - name: podIp
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: contrail_role
+          value: kubemanager
+        volumeMounts:
+        - mountPath: /etc/
+          name: hosts
+      hostNetwork: true
+      containers:
+      - name: contrail-kube-manager
+        image: "10.84.5.71:5000/contrail-kube-manager-ubuntu16.04:4.0.0.0-20"
+        imagePullPolicy: ""
+        command: ["/usr/bin/python", "/tmp/contrailctl_modifier.py"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /tmp/contrailctl
+          name: contrail-config
+        - mountPath: /tmp/
+          name: python
+      volumes:
+      - name: contrail-config
+        configMap:
+          name: contrail-config
+      - name: python
+        configMap:
+          name: contrail-config-modifier
+          items:
+          - key: contrailctl_modifier.py
+            path: contrailctl_modifier.py
+      - name: hosts
+        configMap:
+          name: contrail-hosts
+          items:
+          - key: hosts
+            path: hosts
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
