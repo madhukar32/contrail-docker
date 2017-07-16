@@ -23,7 +23,7 @@ data:
     cluster_network = {}
     service_subnets = 10.96.0.0/12
     pod_subnets = 10.32.0.0/12
-    api_server = 10.87.65.153
+    api_server = 10.87.65.151
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -60,7 +60,12 @@ spec:
       - name: contrail-analyticsdb
         image: "10.84.5.71:5000/contrail-analyticsdb-ubuntu16.04:4.0.0.0-20"
         imagePullPolicy: "IfNotPresent"
-        command: ["python", "/configmap_modifier.py"]
+        #command: ["python", "/configmap_modifier.py"]
+        command: ["/bin/bash", "-c"]
+        args: [
+           "python /tmp/init/configmap_modifier.py;
+           exec /sbin/init"
+        ]
         securityContext:
           privileged: true
         env:
@@ -77,7 +82,15 @@ spec:
           name: analyticsdb-data
         - mountPath: /tmp/contrailctl
           name: contrail-config
+        - mountPath: /tmp/init/
+          name: init
       volumes:
+      - name: init
+        configMap:
+          name: contrail-cm-modifier
+          items:
+            - key: configmap_modifier.py
+              path: configmap_modifier.py
       - name: contrail-config
         configMap:
           name: contrail-config
@@ -119,7 +132,12 @@ spec:
       - name: contrail-analytics
         image: "10.84.5.71:5000/contrail-analytics-ubuntu16.04:4.0.0.0-20"
         imagePullPolicy: "IfNotPresent"
-        command: ["python", "/configmap_modifier.py"]
+        #command: ["python", "/configmap_modifier.py"]
+        command: ["/bin/bash", "-c"]
+        args: [
+           "python /tmp/init/configmap_modifier.py;
+           exec /sbin/init"
+        ]
         securityContext:
           privileged: true
         env:
@@ -134,7 +152,15 @@ spec:
         volumeMounts:
         - mountPath: /tmp/contrailctl
           name: contrail-config
+        - mountPath: /tmp/init/
+          name: init
       volumes:
+      - name: init
+        configMap:
+          name: contrail-cm-modifier
+          items:
+            - key: configmap_modifier.py
+              path: configmap_modifier.py
       - name: contrail-config
         configMap:
           name: contrail-config
@@ -178,10 +204,9 @@ spec:
         #command: ["/bin/bash", "-c", "sleep 10000"]
         command: ["/bin/bash", "-c"]
         args: [
-		"python /tmp/init/configmap_modifier.py;
-                /lib/systemd/systemd;
-		exec /sbin/init"
-	]
+           "python /tmp/init/configmap_modifier.py;
+           exec /sbin/init"
+        ]
         securityContext:
           privileged: true
         env:
@@ -252,7 +277,12 @@ spec:
       - name: contrail-kube-manager
         image: "10.84.5.71:5000/contrail-kube-manager-ubuntu16.04:4.0.0.0-20"
         imagePullPolicy: "IfNotPresent"
-        command: ["python", "/configmap_modifier.py"]
+        #command: ["python", "/configmap_modifier.py"]
+        command: ["/bin/bash", "-c"]
+        args: [
+           "python /tmp/init/configmap_modifier.py;
+           exec /sbin/init"
+        ]
         securityContext:
           privileged: true
         env:
@@ -267,7 +297,15 @@ spec:
         volumeMounts:
         - mountPath: /tmp/contrailctl
           name: contrail-config
+        - mountPath: /tmp/init/
+          name: init
       volumes:
+      - name: init
+        configMap:
+          name: contrail-cm-modifier
+          items:
+            - key: configmap_modifier.py
+              path: configmap_modifier.py
       - name: contrail-config
         configMap:
           name: contrail-config
@@ -306,7 +344,12 @@ spec:
       - name: contrail-agent
         image: "10.84.5.71:5000/contrail-agent-ubuntu16.04:4.0.0.0-20"
         imagePullPolicy: "IfNotPresent"
-        command: ["python", "/configmap_modifier.py"]
+        #command: ["python", "/configmap_modifier.py"]
+        command: ["/bin/bash", "-c"]
+        args: [
+           "python /tmp/init/configmap_modifier.py;
+           exec /sbin/init"
+        ]
         securityContext:
           privileged: true
         env:
@@ -323,8 +366,6 @@ spec:
           name: usr-src
         - mountPath: /lib/modules
           name: lib-modules
-        - mountPath: /tmp/contrailctl
-          name: contrail-config
         - mountPath: /var/lib/contrail/
           name: var-lib-contrail
         - mountPath: /host/etc_cni
@@ -334,7 +375,17 @@ spec:
         # This is a workaround just to make sure the directory is created on host
         - mountPath: /var/log/contrail/cni
           name: var-log-contrail-cni
+        - mountPath: /tmp/contrailctl
+          name: contrail-config
+        - mountPath: /tmp/init/
+          name: init
       volumes:
+      - name: init
+        configMap:
+          name: contrail-cm-modifier
+          items:
+            - key: configmap_modifier.py
+              path: configmap_modifier.py
       - name: contrail-config
         configMap:
           name: contrail-config
@@ -468,6 +519,7 @@ data:
         container '''
     
         CONF_DIR = '/tmp/contrailctl/'
+        OUTPUT_CONF_DIR = '/etc/contrailctl/'
         AUTH_DIR = '/var/run/secrets/kubernetes.io/serviceaccount/'
     
         CORE_V1 = '/api/v1/'
@@ -647,7 +699,10 @@ data:
             cm_updated = True
     
             for contrail_role in self.ROLE_LIST:
-                resource_name =  'contrail-' + self.contrail_role
+                if self.contrail_role == 'kubemanager':
+                    resource_name = 'contrail-kube-manager'
+                else:
+                    resource_name =  'contrail-' + self.contrail_role
                 desired_number = self._get_desired_number_scheduled(resource_name=resource_name,
                                                resource='daemonsets',
                                                namespace=self.namespace)
@@ -707,7 +762,7 @@ data:
             kwargs['name'] = self.CM_NAME
             kwargs['namespace'] = self.namespace
     
-            if self.contrail_role != 'kubemanager' or self.contrail_role != 'agent':
+            if self.contrail_role in self.ROLE_LIST:
                 self.update_podip_contrail_cm(**kwargs)
     
             self.wait_for_cm_update(**kwargs)
@@ -722,16 +777,24 @@ data:
                 self.logger.info('Started building missing data {0} in configmap {1}'.format(new_data_name, self.CM_NAME))
                 global_config, global_fp, contrail_cm_data = self._get_cm_data_as_object(self.GLOBAL_CONFIG,
                                                            **kwargs)
-                contrail_conf_file = self.CONF_DIR + new_data_name
+                
+                contrail_conf_file = self.OUTPUT_CONF_DIR + new_data_name
+                if not os.path.exists(os.path.dirname(self.OUTPUT_CONF_DIR)):
+                    try:
+                        os.makedirs(os.path.dirname(self.OUTPUT_CONF_DIR))
+                    except OSError as exc: # Guard against race condition
+                        if exc.errno != errno.EEXIST:
+                            raise
+                 
                 contrail_fp = open(contrail_conf_file, 'a')
                 global_config.write(contrail_fp)
     
                 role_config = False
     
                 if self.contrail_role == 'kubemanager':
-                    role_config = self._get_cm_data_as_object(self.KUBEMANAGER_CONFIG,
+                    role_config, _, _ = self._get_cm_data_as_object(self.KUBEMANAGER_CONFIG,
                                                                **kwargs)
-                    role_config.set(self.KUBEMANAGER_CONFIG, 'token', self.token)
+                    role_config.set('KUBERNETES', 'token', self.token)
                     #data_config_fp =
                     #self._write_data_to_fp(config=role_config,fp=global_fp)
     
@@ -739,9 +802,9 @@ data:
     
                     #agent_conf_file = self.CONF_DIR + new_data_name
                     #global_config.write(agent_fp)
-                    role_config = self._get_cm_data_as_object(self.AGENT_CONFIG,
+                    role_config, _, _ = self._get_cm_data_as_object(self.AGENT_CONFIG,
                                                               **kwargs)
-                    role_config.set(self.AGENT_CONFIG, 'ctrl_data_ip' ,self.pod_ip)
+                    role_config.set('AGENT', 'ctrl_data_ip' ,self.pod_ip)
     
                 if role_config:
                     role_config.write(contrail_fp)
