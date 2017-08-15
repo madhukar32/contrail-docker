@@ -7,6 +7,7 @@ import time
 from .config import Configurator
 from .map import *
 from .runner import Runner
+from .k8s_modify_config import K8sModifyConfig
 from jsonschema import validate,FormatChecker, exceptions, RefResolver
 import json
 
@@ -15,6 +16,7 @@ from ansible.executor.stats import AggregateStats
 
 LOCK_PATH = "/var/lock/contrailctl"
 PLAYBOOK_DIR = "/contrail-ansible-internal"
+TMP_K8S_CONTRAILCTL = "/tmp/contrailctl"
 
 
 class SingleInstance(object):
@@ -52,6 +54,7 @@ class ConfigManager(object):
         "lb": LB_PARAM_MAP,
         "agent": AGENT_PARAM_MAP,
         "kubemanager": KUBEMANAGER_PARAM_MAP,
+        "kubernetesagent": KUBERNETESAGENT_PARAM_MAP,
         "mesosmanager": MESOSMANAGER_PARAM_MAP,
         "cephcontroller": CEPHCONTROLLER_PARAM_MAP,
         "contrailissu": CONTRAIL_ISSU_MAP,
@@ -66,7 +69,8 @@ class ConfigManager(object):
         kubemanager="contrail_kube_manager.yml",
         mesosmanager="contrail_mesos_manager.yml",
         cephcontroller="storage_ceph_controller.yml",
-        contrailissu="contrail_issu.yml"
+        contrailissu="contrail_issu.yml",
+        kubernetesagent="contrail_kubernetes_agent.yml"
     )
 
     def __init__(self, config_file, component):
@@ -140,6 +144,7 @@ class ConfigManager(object):
         extra_vars_dict = dict(x.split('=') for x in extra_vars)
         if not tags:
             tags = ['configure', 'service', 'provision']
+
         valid = self.validate()
         if not valid:
             return None
@@ -215,7 +220,7 @@ class ConfigManager(object):
 def main(args=sys.argv[1:]):
 
     components = ["controller", "analyticsdb", "analytics", "agent",
-                      "lb","kubemanager", "mesosmanager", "cephcontroller", "contrailissu"]
+                      "lb","kubemanager", "mesosmanager", "cephcontroller", "contrailissu", "kubernetesagent"]
     types = ["controller", "analyticsdb", "analytics", "cephcontroller"]
     ap_node_common = argparse.ArgumentParser(add_help=False)
     ap_node_common.add_argument('-t', '--type', type=str, required=True,
@@ -285,6 +290,20 @@ def main(args=sys.argv[1:]):
     timeout = 1800
     poll = 10
     total_wait_time = 0
+
+    if args.tags and 'configure' in args.tags:
+        if args.component in ["kubemanager", "agent", "kubernetesagent"]:
+            if os.path.exists(TMP_K8S_CONTRAILCTL):
+                k8s_modify = K8sModifyConfig(args.component,TMP_K8S_CONTRAILCTL,args.config_file)
+                merged = False
+                if args.component == "agent":
+                    merged = k8s_modify.merge_update_sections_agent()
+                elif args.component == "kubemanager":
+                    merged = k8s_modify.merge_update_sections_kubemanager()
+                elif args.component == "kubernetesagent":
+                    merged = k8s_modify.merge_update_sections_kubernetesagent()
+                if not merged:
+                    return 1
 
     while True:
         si = SingleInstance()

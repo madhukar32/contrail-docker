@@ -44,6 +44,7 @@ CONTROLLER_PARAM_MAP = dict(
         webui_storage_enable="webui_storage_enable",
         nova_api_ip="nova_api_ip",
         glance_api_ip="glance_api_ip",
+        network_manager_ip='network_manager_ip',
     )
 )
 
@@ -51,6 +52,7 @@ ANALYTICS_PARAM_MAP = {}
 ANALYTICSDB_PARAM_MAP = {}
 AGENT_PARAM_MAP = {}
 KUBEMANAGER_PARAM_MAP = {}
+KUBERNETESAGENT_PARAM_MAP = {}
 MESOSMANAGER_PARAM_MAP = {}
 CEPHCONTROLLER_PARAM_MAP = dict(
     CEPH_CONTROLLER=dict(
