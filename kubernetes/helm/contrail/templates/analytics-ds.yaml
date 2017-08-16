@@ -19,12 +19,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: "opencontrail.org/component"
-                operator: In
-                values:
-                - "analytics"
-            - matchExpressions:
-              - key: "opencontrail.org/control-plane"
+              - key: "opencontrail.org/controller"
                 operator: In
                 values:
                 - "true"
@@ -38,12 +33,8 @@ spec:
       hostNetwork: true
       containers:
       - name: contrail-analytics
-        {{- if .Values.imageRepo }}
-        image: "{{ .Values.imageRepo }}/{{ default "contrail-analytics" .Values.analyticsImageName }}-{{ .Values.containerOsRelease }}:{{ .Values.contrailVersion }}"
-        {{- else }}
-        image: "{{ default "contrail-analytics" .Values.analyticsImageName }}"
-        {{- end }}
-        imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        image: {{ .Values.images.analytics | quote }}
+        imagePullPolicy: {{ default "" .Values.images.imagePullPolicy | quote }}
         securityContext:
           privileged: true
         volumeMounts:

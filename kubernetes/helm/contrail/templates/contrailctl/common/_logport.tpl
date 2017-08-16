@@ -7,14 +7,14 @@
 {{/* 	- listen_port */}}
 {{/* =============================================================== */}}
 
-{{- define "logPortConfig" -}}
+{{- define "contrail.logPortConfig" -}}
 
-{{- if not .log_file -}}#{{- end -}}log = {{ .log_file }}
+{{- if not .logFile -}}#{{- end -}}log = {{ .logFile }}
 
-{{- if not .log_level -}}#{{- end -}}log_level = {{ .log_level | default "SYS_NOTICE" }}
+{{- if not .logLevel -}}#{{- end -}}log_level = {{ .logLevel | default "SYS_NOTICE" }}
 
-{{- if not .introspect_port -}}#{{- end -}}introspect_port = {{ .introspect_port }}
+{{- if not .introspectPort -}}#{{- end -}}introspect_port = {{ .introspectPort }}
 
-{{- if not .listen_port -}}#{{- end -}}listen_port = {{ .listen_port }}
+{{- if not .listenPort -}}#{{- end -}}listen_port = {{ .listenPort }}
 
 {{- end -}}

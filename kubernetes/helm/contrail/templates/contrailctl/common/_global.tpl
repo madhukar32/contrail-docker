@@ -11,9 +11,9 @@
 {{- $analytics_nodes := .analytics.nodes | default .controller.nodes -}}
 {{- $config_nodes := .config.nodes | default .controller.nodes -}}
 {{- if .webui.nodes -}}{{- $webui_nodes := .webui.nodes -}}{{- end -}}
-{{- if .external.rabbitmq_servers -}}{{ $rabbitmq_servers := .external.rabbitmq_servers -}}{{- end -}}
-{{- if .external.controller_zookeeper_servers -}}{{ $ctrl_zookeper_servers := .external.controller_zookeeper_servers -}}{{- end -}}
-{{- if .external.analyticsdb_zookeeper_servers -}}{{ $adb_zookeper_servers := .external.analyticsdb_zookeeper_servers -}}{{- end -}}
+{{- if .external.rabbitmqServers -}}{{ $rabbitmq_servers := .external.rabbitmqServers -}}{{- end -}}
+{{- if .external.controllerZookeeperServers -}}{{ $ctrl_zookeper_servers := .external.controllerZookeeperServers -}}{{- end -}}
+{{- if .external.analyticsdbZookeeperServers -}}{{ $adb_zookeper_servers := .external.analyticsdbZookeeperServers -}}{{- end -}}
 
 {{- $len_controller_nodes := len $controller_nodes -}}
 {{- $len_analyticsdb_nodes := len $analyticsdb_nodes -}}
@@ -48,36 +48,38 @@ config_ip = {{- .config.virtual_ip | default first $config_nodes }}
 analytics_ip = {{- .analytics.virtual_ip | default first $analytics_nodes }}
 analyticsdb_ip = {{- .analyticsdb.virtual_ip | default first $analyticsidb_nodes }}
 
-{{- if not .controller.enable_control_service -}}#{{- end -}}enable_control_service = {{- .controller.enable_control_service | default "true" }}
-{{- if not .webui.enable_webui_service -}}#{{- end -}}enable_webui_service = {{- .webui.enable_webui_service | default "true" }}
-{{- if not .config.enable_webui_service -}}#{{- end -}}enable_config_service = {{- .webui.enable_config_service | default "true" -}}
+{{- if not .controller.enableControlService -}}#{{- end -}}enable_control_service = {{- .controller.enableControlService | default "true" }}
+{{- if not .webui.enableWebuiService -}}#{{- end -}}enable_webui_service = {{- .webui.enableWebuiService | default "true" }}
+{{- if not .config.enableWebuiService -}}#{{- end -}}enable_config_service = {{- .webui.enableConfigService | default "true" -}}
 
-{{- if not .config.cassandra_user -}}#{{- end -}}configdb_cassandra_user = {{- .config.cassandra_user | default '' -}}
-{{- if not .config.cassandra_password -}}#{{- end -}}configdb_cassandra_password = {{- .config.cassandra_password | default '' -}}
-{{- if not .analyticsdb.cassandra_user -}}#{{- end -}}analyticsdb_cassandra_user = {{- .analyticsdb.cassandra_user | default '' -}}
-{{- if not .analyticsdb.cassandra_password -}}#{{- end -}}analyticsdb_cassandra_password = {{- .analyticsdb.cassandra_password | default '' -}}
+{{- if not .config.cassandraUser -}}#{{- end -}}configdb_cassandra_user = {{- .config.cassandraUser | default '' -}}
+{{- if not .config.cassandraPassword -}}#{{- end -}}configdb_cassandra_password = {{- .config.cassandraPassword | default '' -}}
+{{- if not .analyticsdb.cassandraUser -}}#{{- end -}}analyticsdb_cassandra_user = {{- .analyticsdb.cassandraUser | default '' -}}
+{{- if not .analyticsdb.cassandraPassword -}}#{{- end -}}analyticsdb_cassandra_password = {{- .analyticsdb.cassandraPassword | default '' -}}
 
 {{/* TODO check if the hosts_entries format works */}}
-{{- if not .hosts_entries -}}#{{- end -}}hosts_entries = {{- .hosts_entries | default '' -}}
-{{- if not .cloud_orchestrator -}}#{{- end -}}cloud_orchestrator = {{- .cloud_orchestrator | default "kubernetes" }}
+{{- if not .hostsEntries -}}#{{- end -}}hosts_entries = {{- .hostsEntries | default '' -}}
+{{- if not .cloudOrchestrator -}}#{{- end -}}cloud_orchestrator = {{- .cloudOrchestrator | default "kubernetes" }}
 
 
-{{- if not .external.rabbitmq_servers -}}#{{- end -}}external_rabbitmq_servers = {{- if gt $rabbitmq_servers 1 -}}{{- $rabbitmq_servers | join "," }}{{- else -}}{{- first $rabbitmq_servers }}{{- end -}}
-{{- if not .external.controller_zookeeper_servers -}}#{{- end -}}external_zookeeper_servers = {{- if gt $ctrl_zookeper_servers 1 -}}{{- $ctrl_zookeper_servers | join "," }}{{- else -}}{{- first $ctrl_zookeper_servers }}{{- end -}}
-{{- if not .external.analyticsdb_zookeeper_servers -}}#{{- end -}}external_analyticsdb_zookeeper_servers = {{- if gt $adb_zookeper_servers 1 -}}{{- $adb_zookeper_servers | join "," }}{{- else -}}{{- first $adb_zookeper_servers }}{{- end -}}
+{{- if not .uvePartitionCount -}}#{{- end -}}uve_partition_count = {{- .uvePartitionCount }}
 
-{{- if not .ssl.xmpp_auth -}}#{{- end -}}xmpp_auth_enable = {{- .ssl.xmpp_auth | default 'false' }}
-{{- if not .ssl.xmpp_dns_auth -}}#{{- end -}}xmpp_dns_auth_enable = {{- .ssl.xmpp_dns_auth | default 'false' }}
+{{- if not .external.rabbitmqServers -}}#{{- end -}}external_rabbitmq_servers = {{- if gt $rabbitmq_servers 1 -}}{{- $rabbitmq_servers | join "," }}{{- else -}}{{- first $rabbitmq_servers }}{{- end -}}
+{{- if not .external.controllerZookeeperServers -}}#{{- end -}}external_zookeeper_servers = {{- if gt $ctrl_zookeper_servers 1 -}}{{- $ctrl_zookeper_servers | join "," }}{{- else -}}{{- first $ctrl_zookeper_servers }}{{- end -}}
+{{- if not .external.analyticsdbZookeeperServers -}}#{{- end -}}external_analyticsdb_zookeeper_servers = {{- if gt $adb_zookeper_servers 1 -}}{{- $adb_zookeper_servers | join "," }}{{- else -}}{{- first $adb_zookeper_servers }}{{- end -}}
+
+{{- if not .ssl.xmppAuth -}}#{{- end -}}xmpp_auth_enable = {{- .ssl.xmppAuth | default 'false' }}
+{{- if not .ssl.xmppDNSAuth -}}#{{- end -}}xmpp_dns_auth_enable = {{- .ssl.xmppDNSAuth | default 'false' }}
 {{- if not .ssl.sandesh -}}#{{- end -}}sandesh_ssl_enable = {{- .ssl.sandesh | default 'false' }}
 {{- if not .ssl.introspect -}}#{{- end -}}introspect_ssl_enable = {{- .ssl.introspect | default 'false' }}
 
-{{- if not .apiserver.auth_protocol -}}#{{- end -}}apiserver_auth_protocol = {{- .apiserver.auth_protocol | default 'http' }}
+{{- if not .apiserver.authProtocol -}}#{{- end -}}apiserver_auth_protocol = {{- .apiserver.authProtocol | default 'http' }}
 {{- if not .apiserver.certfile -}}#{{- end -}}apiserver_certfile = {{- .apiserver.certfile |  default '' }}
 {{- if not .apiserver.keyfile -}}#{{- end -}}apiserver_keyfile = {{- .apiserver.keyfile | default '' }}
 {{- if not .apiserver.cafile -}}#{{- end -}}apiserver_cafile = {{- .apiserver.cafile | default '' }}
 {{- if not .apiserver.insecure -}}#{{- end -}}apiserver_insecure = {{- .apiserver.insecure | default '' }}
 
-{{- if not .neutron.metadata_ip -}}#{{- end -}}neutron_metadata_ip = {{- .neutron.metadata_ip | default '' }}
-{{- if not .neutron.metadata_port -}}#{{- end -}}neutron_metadata_port = {{- .neutron.metadata_port | default '' }}
+{{- if not .neutron.metadataIP -}}#{{- end -}}neutron_metadata_ip = {{- .neutron.metadataIP | default '' }}
+{{- if not .neutron.metadataPort -}}#{{- end -}}neutron_metadata_port = {{- .neutron.metadataPort | default '' }}
 
 {{- end -}}

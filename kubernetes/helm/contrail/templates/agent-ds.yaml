@@ -1,3 +1,4 @@
+# Set hostOs as ubuntu by default
 {{- if not .Values.hostOs -}}{{- $_ := set .Values "hostOs" "ubuntu" -}}{{- end }}
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -20,15 +21,13 @@ spec:
         operator: Exists
         effect: NoSchedule
       hostNetwork: true
-{{- if eq .Values.hostOs "centos7" }}
+      automountServiceAccountToken: false
       initContainers:
+{{- if eq .Values.hostOs "centos" -}}
+{{- required ".Values.images.vrouterCompiler must be specified, if hostOS is centos" .Values.images.vrouterCompiler -}}
       - name: contrail-vrouter-compiler
-        {{- if .Values.imageRepo }}
-        image: "{{ .Values.imageRepo }}/{{ default "contrail-vrouter-compiler-centos7" .Values.compilerImageName }}:{{ .Values.contrailVersion }}"
-        {{- else }}
-        image: {{ default "contrail-vrouter-compiler-centos7" .Values.compilerImageName }}:{{ .Values.contrailVersion }}"
-        {{- end  }}
-        imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        image: {{ .Values.images.vrouterCompiler | quote }}
+        imagePullPolicy: {{ default "" .Values.images.imagePullPolicy | quote }}
         securityContext:
           privileged: true
         volumeMounts:
@@ -40,19 +39,33 @@ spec:
         - name: INSTALL_VROUTER_MODULE
           value: 'true'
 {{- end }}
+      - name: contrail-kubernetes-agent
+        image: {{ .Values.images.kubernetesAgent | quote }}
+        imagePullPolicy: {{ default "" .Values.images.imagePullPolicy | quote }}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /tmp/contrailctl
+          name: tmp-contrail-config
+        - mountPath: /var/lib/contrail/
+          name: var-lib-contrail
+        - mountPath: /host/etc_cni
+          name: etc-cni
+        - mountPath: /host/opt_cni_bin
+          name: opt-cni-bin
+        - mountPath: /var/log/contrail/cni
+          name: var-log-contrail-cni 
       containers:
       - name: contrail-agent
-        {{- if .Values.imageRepo }}
-        image: "{{ .Values.imageRepo }}/{{ default "contrail-agent" .Values.agentImageName }}-{{ .Values.containerOsRelease }}:{{ .Values.contrailVersion }}"
-        {{- else }}
-        image: "{{ default "contrail-agent" .Values.agentImageName }}"
-        {{- end  }}
+        image: {{ .Values.images.vrouterAgent | quote }}
         imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
         securityContext:
           privileged: true
         volumeMounts:
-        - mountPath: /etc/contrailctl
-          name: etc-contrailctl
+        - mountPath: /tmp/contrailctl
+          name: tmp-contrail-config
+        - mountPath: /tmp/serviceaccount
+          name: pod-secret
         - mountPath: /lib/modules
           name: lib-modules
         - mountPath: /usr/src
@@ -67,12 +80,22 @@ spec:
         - mountPath: /var/log/contrail/cni
           name: log-cni
       volumes:
-      - name: etc-contrailctl
+      - name: tmp-contrail-config
         configMap:
           name: contrailctl-config
           items:
+          - key: global-config
+            path: global.conf
           - key: agent-config
             path: agent.conf
+          - key: kubemanager-config
+            path: kubemanager.conf
+          - key: kubernetes-agent-config
+            path: kubernetesagent.conf
+      - name: pod-secret
+        secret:
+          secretName: contrail-kube-manager-token
+      - name: usr-src
       - name: lib-modules
         hostPath:
           path: /lib/modules

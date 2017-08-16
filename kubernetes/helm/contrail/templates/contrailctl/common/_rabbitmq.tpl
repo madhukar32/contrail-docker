@@ -2,7 +2,8 @@
 {{/* RABBITMQ section of the contrailctl is formed using this template */}}
 {{/* =============================================================== */}}
 
-{{- define "rabbitmqConfig" -}}
+{{- define "contrail.rabbitmqConfig" -}}
+
 [RABBITMQ]
 
 {{- if not .rabbitmq.user -}}#{{- end -}}user = {{- .rabbitmq.user | default "guest" }}
