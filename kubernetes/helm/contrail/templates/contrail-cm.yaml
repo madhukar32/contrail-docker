@@ -16,15 +16,14 @@ data:
 {{ include "contrail.agentConfig" .Values | indent 4 }}
   controller-config: |-
 {{ include "contrail.globalConfig" .Values.conf.global | indent 4 }}
-{{ include "globalConfig" .Values | indent 4 }}
-{{ include "webuiConfig" .Values | indent 4 }}
-  analyticsdb-config: |-
+{{ include "contrail.controllerConfig" .Values.conf | indent 4 }}
+  analyticsdb-config: 
 {{ include "contrail.globalConfig" .Values.conf.global | indent 4 }}
-{{ include "globalConfig" .Values | indent 4 }}
+{{ include "contrail.analyticsdbConfig" .Values.conf.analyticsdb_cassandra | indent 4 }}
   analytics-config: |-
 {{ include "contrail.globalConfig" .Values.conf.global | indent 4 }}
-{{ include "globalConfig" .Values | indent 4 }}
-  kube-manager-config: |-
+{{ include "contrail.analyticsConfig" .Values.conf | indent 4 }}
+  kubemanager-config: |-
 {{ include "contrail.kubernetesConfig" .Values.conf | indent 4 }}
   kubernetes-agent-config: |-
   # TO-DO have to check with Dinesh on this

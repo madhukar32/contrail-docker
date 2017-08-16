@@ -5,12 +5,12 @@
 {{/* 	- data_dirs */}}
 {{/* =============================================================== */}}
 
-{{- define "cassandraConfig" -}}
+{{- define "contrail.cassandraConfig" -}}
 
 [CASSANDRA]
 
-{{- if not .commitlog_dir -}}#{{- end -}}commitlog_dir = {{- .commitlog_dir | default "/var/lib/cassandra/commitlog" -}}
+{{- if not .commitLogDir -}}#{{- end -}}commitlog_dir = {{- .commitLogDir | default "/var/lib/cassandra/commitlog" -}}
 
-{{- if not .data_dirs -}}#{{- end -}}data_dirs = {{- .data_dirs | default "/var/lib/cassandra/data" -}}
+{{- if not .dataDirs -}}#{{- end -}}data_dirs = {{- .dataDirs | default "/var/lib/cassandra/data" -}}
 
 {{-  end -}}
